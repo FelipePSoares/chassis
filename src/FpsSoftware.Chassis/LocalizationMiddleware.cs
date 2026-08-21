@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -36,18 +37,13 @@ namespace FpsSoftware.Chassis
                 foreach (var lang in acceptLanguage)
                 {
                     var cultureCode = lang?.Split(';')[0].Trim();
+                    if (string.IsNullOrEmpty(cultureCode))
+                        continue;
 
-                    try
+                    if (TrySetCulture(cultureCode))
                     {
-                        var culture = new CultureInfo(cultureCode);
-                        CultureInfo.CurrentCulture = culture;
-                        CultureInfo.CurrentUICulture = culture;
                         cultureSet = true;
                         break;
-                    }
-                    catch (CultureNotFoundException)
-                    {
-                        continue;
                     }
                 }
             }
@@ -59,6 +55,29 @@ namespace FpsSoftware.Chassis
             }
 
             await _next(context);
+        }
+
+        private static bool TrySetCulture(string cultureCode)
+        {
+            try
+            {
+                // `new CultureInfo(...)` accepts arbitrary codes as custom cultures
+                // without throwing, so check it is a known culture before using it.
+                if (!CultureInfo.GetCultures(CultureTypes.AllCultures)
+                    .Any(c => string.Equals(c.Name, cultureCode, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return false;
+                }
+
+                var culture = new CultureInfo(cultureCode);
+                CultureInfo.CurrentCulture = culture;
+                CultureInfo.CurrentUICulture = culture;
+                return true;
+            }
+            catch (CultureNotFoundException)
+            {
+                return false;
+            }
         }
     }
 
