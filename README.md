@@ -170,7 +170,7 @@ The nonce is also stored in `HttpContext.Items[NonceKey]` so downstream code (e.
 
 ## JWT / authentication
 
-`JwtTokenSettings`, `JwtTokenService`, and the `AddChassisJwtAuthentication` extension provide configurable JWT issuing, expiry-tolerant principal lookup, and bearer authentication setup. The consuming application supplies claims and user data (via DI/options or its own user store) — the package stays application-agnostic.
+`JwtTokenSettings` and `JwtTokenService` provide configurable JWT issuing and expiry-tolerant principal lookup. The consuming application supplies claims and user data — the package stays application-agnostic. Bearer/Identity setup stays in the consuming app's own composition layer (registering `Microsoft.AspNetCore.Authentication.JwtBearer` there, e.g. `AddJwtBearer`), so this library has no dependency on the version-fragile `JwtBearer` package.
 
 ### `JwtTokenService.CreateToken`
 
@@ -206,35 +206,6 @@ var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
 ```
 
 > Throws `SecurityTokenException` if the token is not signed with HS256 or fails validation.
-
-### `AddChassisJwtAuthentication`
-
-Registers JWT bearer authentication with token-validation parameters derived from `JwtTokenSettings`.
-
-```csharp
-// Program.cs
-var builder = WebApplication.CreateBuilder(args);
-
-var settings = new JwtTokenSettings
-{
-    SecretKey = builder.Configuration["Jwt:SecretKey"]!,
-    Issuer = builder.Configuration["Jwt:Issuer"],
-    Audience = builder.Configuration["Jwt:Audience"],
-    TokenExpireSeconds = 900,
-};
-
-builder.Services.AddChassisJwtAuthentication(settings);
-
-var app = builder.Build();
-app.UseAuthentication();
-app.UseAuthorization();
-```
-
-### Known caveat
-
-`Microsoft.AspNetCore.Authentication.JwtBearer` is pinned to **2.2.0** because that is the last version targeting `netstandard` — newer versions (3.0+) only target .NET Core apps and cannot be referenced from a `netstandard2.1` library. 2.2.0 drags in `Microsoft.IdentityModel.Tokens` 5.x by default.
-
-If consuming this package from an **ASP.NET Core 8+** app that also uses `Microsoft.IdentityModel.Tokens` 7.x/8.x (e.g. via `System.IdentityModel.Tokens.Jwt`), NuGet may warn about binding conflicts. In practice the newer `System.IdentityModel.Tokens.Jwt` package (8.x) referenced by this library wins at restore and JWT issuing/validation works; if your app hits version conflicts, upgrade `Microsoft.IdentityModel.Tokens` explicitly, or move the bearer setup (`AddChassisJwtAuthentication`) into your app's own `net8.0` composition layer while keeping `JwtTokenService` in the package.
 
 ---
 
