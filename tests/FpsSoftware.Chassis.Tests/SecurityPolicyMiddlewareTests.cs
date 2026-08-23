@@ -32,6 +32,40 @@ public class SecurityPolicyMiddlewareTests
     }
 
     [Fact]
+    public async Task Invoke_SpaRoute_WithoutFileProvider_ShouldPassThroughToNext()
+    {
+        var invoked = false;
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/dashboard";
+
+        await new SecurityPolicyMiddleware(
+            _ => { invoked = true; return Task.CompletedTask; },
+            SecurityPolicyOptions.Default).Invoke(context);
+
+        invoked.Should().BeTrue();
+        context.Response.ContentType.Should().BeNull();
+        context.Response.Headers.ContainsKey("Content-Security-Policy").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Invoke_SpaRoute_WhenIndexHtmlMissing_ShouldPassThroughToNext()
+    {
+        var invoked = false;
+        var options = new SecurityPolicyOptions { FileProvider = new InMemoryFileProvider(new Dictionary<string, string>()) };
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/dashboard";
+        context.Response.Body = new MemoryStream();
+
+        await new SecurityPolicyMiddleware(
+            _ => { invoked = true; return Task.CompletedTask; },
+            options).Invoke(context);
+
+        invoked.Should().BeTrue();
+        context.Response.ContentType.Should().BeNull();
+        (context.Response.Body as MemoryStream)!.Length.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Invoke_SpaRoute_ShouldServeIndexWithNonceAndCsp()
     {
         var fileProvider = new InMemoryFileProvider(new Dictionary<string, string>

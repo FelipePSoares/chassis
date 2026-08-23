@@ -38,9 +38,19 @@ namespace FpsSoftware.Chassis
             var nonce = Convert.ToBase64String(bytes);
             context.Items[_options.NonceKey] = nonce;
 
-            var html = _options.FileProvider is not null
-                ? await ReadIndexHtmlAsync(_options.FileProvider)
-                : string.Empty;
+            var html = string.Empty;
+            if (_options.FileProvider is not null)
+            {
+                html = await ReadIndexHtmlAsync(_options.FileProvider);
+            }
+
+            // If we have nothing to serve, fall through to the normal pipeline
+            // (static files / SPA fallback) instead of writing an empty body.
+            if (string.IsNullOrEmpty(html))
+            {
+                await _next(context);
+                return;
+            }
 
             html = html.Replace(_options.NoncePlaceholder, nonce);
 
@@ -50,6 +60,8 @@ namespace FpsSoftware.Chassis
             await context.Response.WriteAsync(html);
         }
 
+        // Returns the index document (if present) or null when there is no
+        // servable file, so callers can fall through to the next middleware.
         private static async Task<string> ReadIndexHtmlAsync(IFileProvider fileProvider)
         {
             var file = fileProvider.GetFileInfo("wwwroot/index.html");
