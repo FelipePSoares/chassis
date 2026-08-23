@@ -170,7 +170,7 @@ The nonce is also stored in `HttpContext.Items[NonceKey]` so downstream code (e.
 
 ## JWT / authentication
 
-`JwtTokenSettings` and `JwtTokenService` provide configurable JWT issuing and expiry-tolerant principal lookup. The consuming application supplies claims and user data — the package stays application-agnostic. Bearer/Identity setup stays in the consuming app's own composition layer (registering `Microsoft.AspNetCore.Authentication.JwtBearer` there, e.g. `AddJwtBearer`), so this library has no dependency on the version-fragile `JwtBearer` package.
+`JwtTokenSettings`, `JwtTokenService`, and the `AddChassisJwtBearer` extension provide configurable JWT issuing, expiry-tolerant principal lookup, and bearer authentication setup. The consuming application supplies claims, identity wiring (stores, roles, claims factory, endpoint identity), and the access-token cookie name — the package stays application-agnostic.
 
 ### `JwtTokenService.CreateToken`
 
@@ -206,6 +206,38 @@ var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
 ```
 
 > Throws `SecurityTokenException` if the token is not signed with HS256 or fails validation.
+
+### `AddChassisJwtBearer`
+
+Registers JWT bearer authentication with token-validation parameters derived from `JwtTokenSettings`, plus an optional access-token cookie fallback.
+
+```csharp
+// Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+var settings = new JwtTokenSettings
+{
+    SecretKey = builder.Configuration["Jwt:SecretKey"]!,
+    Issuer = builder.Configuration["Jwt:Issuer"],
+    Audience = builder.Configuration["Jwt:Audience"],
+    TokenExpireSeconds = 900,
+};
+
+// Your own ASP.NET Core Identity setup (app-specific stores, roles, claims factory):
+builder.Services.AddIdentityCore<User>() // e.g. your User type
+    .AddRoles<IdentityRole<Guid>>()
+    .AddEntityFrameworkStores<YourDbContext>();
+
+// Generic bearer auth from the package:
+builder.Services.AddChassisJwtBearer(
+    settings,
+    accessTokenCookieName: "AuthToken",                 // optional cookie fallback
+    configureJwtBearer: options => { /* extra tweaks */ });
+
+var app = builder.Build();
+app.UseAuthentication();
+app.UseAuthorization();
+```
 
 ---
 
